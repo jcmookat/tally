@@ -46,6 +46,7 @@ function isUniqueViolation(err: unknown): boolean {
 export type Board = {
   slug: string;
   name: string;
+  position: number;
   created_at: string;
 };
 
@@ -69,16 +70,16 @@ function todayUTC(): string {
 
 export async function listBoards(): Promise<Board[]> {
   const rows = await tag`
-    select slug, name, created_at
+    select slug, name, position, created_at
     from boards
-    order by created_at asc
+    order by position asc, created_at asc
   `;
   return rows as Board[];
 }
 
 export async function getBoard(slug: string): Promise<Board | null> {
   const rows = await tag`
-    select slug, name, created_at
+    select slug, name, position, created_at
     from boards
     where slug = ${slug}
   `;
@@ -93,9 +94,9 @@ export async function createBoard(name: string): Promise<Board> {
   for (let attempt = 2; attempt <= 21; attempt++) {
     try {
       const rows = await tag`
-        insert into boards (slug, name)
-        values (${slug}, ${trimmed})
-        returning slug, name, created_at
+        insert into boards (slug, name, position)
+        values (${slug}, ${trimmed}, (select coalesce(max(position), -1) + 1 from boards))
+        returning slug, name, position, created_at
       `;
       return (rows as unknown as Board[])[0];
     } catch (err) {
@@ -104,6 +105,37 @@ export async function createBoard(name: string): Promise<Board> {
     }
   }
   throw new Error("Could not generate a unique board slug");
+}
+
+export async function renameBoard(
+  slug: string,
+  name: string
+): Promise<Board | null> {
+  const trimmed = name.trim();
+  const rows = await tag`
+    update boards
+    set name = ${trimmed}
+    where slug = ${slug}
+    returning slug, name, position, created_at
+  `;
+  return ((rows as unknown as Board[])[0] as Board | undefined) ?? null;
+}
+
+export async function deleteBoard(slug: string): Promise<void> {
+  await tag`delete from items where owner = ${slug}`;
+  await tag`delete from boards where slug = ${slug}`;
+}
+
+export async function reorderBoards(orderedSlugs: string[]): Promise<void> {
+  const positions = orderedSlugs.map((_, index) => index);
+  await tag`
+    update boards as b
+    set position = data.position
+    from (
+      select unnest(${orderedSlugs}::text[]) as slug, unnest(${positions}::int[]) as position
+    ) as data
+    where b.slug = data.slug
+  `;
 }
 
 export async function listItems(board: string): Promise<Item[]> {

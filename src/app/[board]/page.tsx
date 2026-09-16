@@ -33,7 +33,20 @@ export default async function BoardPage({
               Click counters for anything worth counting.
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/items/${slug}/export`}
+              download
+              title="Export as CSV"
+              aria-label="Export as CSV"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted transition-colors hover:text-ink hover:border-accent"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12m0 0-4-4m4 4 4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" />
+              </svg>
+            </a>
+            <ThemeToggle />
+          </div>
         </header>
 
         <TallyBoard board={slug} initialItems={items} />

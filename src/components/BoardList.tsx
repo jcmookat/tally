@@ -1,18 +1,59 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { useRef, useState } from "react";
+import { AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import type { Board } from "@/lib/db";
+import BoardCard from "@/components/BoardCard";
 import AddBoardTile from "@/components/AddBoardTile";
 
 type Props = {
   initialBoards: Board[];
 };
 
+type SortableBoardProps = {
+  board: Board;
+  onSave: (name: string) => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+};
+
+function SortableBoard({
+  board,
+  onSave,
+  onDelete,
+  onDragStart,
+  onDragEnd,
+}: SortableBoardProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={board}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className="list-none"
+    >
+      <BoardCard
+        board={board}
+        dragControls={dragControls}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
+    </Reorder.Item>
+  );
+}
+
 export default function BoardList({ initialBoards }: Props) {
   const [boards, setBoards] = useState<Board[]>(initialBoards);
   const [error, setError] = useState<string | null>(null);
+  const dragStartOrder = useRef<Board[] | null>(null);
 
   function flash(message: string) {
     setError(message);
@@ -22,7 +63,12 @@ export default function BoardList({ initialBoards }: Props) {
   async function handleCreate(name: string) {
     const tempSlug = `temp-${Date.now()}`;
     const now = new Date().toISOString();
-    const optimistic: Board = { slug: tempSlug, name, created_at: now };
+    const optimistic: Board = {
+      slug: tempSlug,
+      name,
+      position: boards.length,
+      created_at: now,
+    };
     setBoards((prev) => [...prev, optimistic]);
 
     try {
@@ -45,29 +91,88 @@ export default function BoardList({ initialBoards }: Props) {
     }
   }
 
+  async function handleRename(slug: string, name: string) {
+    const previous = boards;
+    setBoards((prev) =>
+      prev.map((b) => (b.slug === slug ? { ...b, name } : b))
+    );
+
+    try {
+      const res = await fetch(`/api/boards/${slug}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Failed to rename board");
+      const updated: Board = await res.json();
+      setBoards((prev) => prev.map((b) => (b.slug === slug ? updated : b)));
+    } catch {
+      setBoards(previous);
+      flash("Couldn't rename that board. Try again.");
+    }
+  }
+
+  async function handleDelete(slug: string) {
+    const previous = boards;
+    setBoards((prev) => prev.filter((b) => b.slug !== slug));
+
+    try {
+      const res = await fetch(`/api/boards/${slug}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete board");
+    } catch {
+      setBoards(previous);
+      flash("Couldn't delete that board. Try again.");
+    }
+  }
+
+  function handleDragStart() {
+    dragStartOrder.current = boards;
+  }
+
+  async function handleDragEnd() {
+    const previous = dragStartOrder.current;
+    dragStartOrder.current = null;
+    if (!previous) return;
+
+    const currentSlugs = boards.map((b) => b.slug);
+    const previousSlugs = previous.map((b) => b.slug);
+    if (currentSlugs.join() === previousSlugs.join()) return;
+
+    try {
+      const res = await fetch("/api/boards", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: currentSlugs }),
+      });
+      if (!res.ok) throw new Error("Failed to reorder");
+    } catch {
+      setBoards(previous);
+      flash("Couldn't save that order. Try again.");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <AnimatePresence initial={false}>
-        {boards.map((board) => (
-          <motion.div
-            key={board.slug}
-            layout
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-          >
-            <Link
-              href={`/${board.slug}`}
-              className="flex items-center justify-between rounded-2xl border border-border bg-surface px-6 py-5 text-lg font-semibold text-ink shadow-sm transition-colors hover:border-accent hover:text-accent"
-            >
-              {board.name}
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 6l6 6-6 6" />
-              </svg>
-            </Link>
-          </motion.div>
-        ))}
-      </AnimatePresence>
+      <Reorder.Group
+        as="ul"
+        axis="y"
+        values={boards}
+        onReorder={setBoards}
+        className="flex flex-col gap-3"
+      >
+        <AnimatePresence initial={false}>
+          {boards.map((board) => (
+            <SortableBoard
+              key={board.slug}
+              board={board}
+              onSave={(name) => handleRename(board.slug, name)}
+              onDelete={() => handleDelete(board.slug)}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            />
+          ))}
+        </AnimatePresence>
+      </Reorder.Group>
 
       <AddBoardTile onCreate={handleCreate} />
 

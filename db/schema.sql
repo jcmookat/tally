@@ -48,3 +48,17 @@ create table if not exists boards (
 
 insert into boards (slug, name) values ('pogi', 'Pogi'), ('ganda', 'Ganda')
 on conflict (slug) do nothing;
+
+alter table boards add column if not exists position integer;
+
+update boards set position = sub.rn
+from (
+  select slug, row_number() over (order by created_at asc) - 1 as rn
+  from boards
+) as sub
+where boards.slug = sub.slug and boards.position is null;
+
+alter table boards alter column position set not null;
+alter table boards alter column position set default 0;
+
+create index if not exists boards_position_idx on boards (position);
