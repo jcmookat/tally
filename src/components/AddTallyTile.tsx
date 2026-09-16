@@ -5,7 +5,12 @@ import { motion } from "framer-motion";
 import { SWATCHES, randomSwatch } from "@/lib/palette";
 
 type Props = {
-  onCreate: (input: { name: string; color: string; step: number }) => void;
+  onCreate: (input: {
+    name: string;
+    color: string;
+    step: number;
+    autoTally: boolean;
+  }) => void;
 };
 
 export default function AddTallyTile({ onCreate }: Props) {
@@ -13,11 +18,13 @@ export default function AddTallyTile({ onCreate }: Props) {
   const [name, setName] = useState("");
   const [color, setColor] = useState(randomSwatch());
   const [step, setStep] = useState(1);
+  const [autoTally, setAutoTally] = useState(false);
 
   function reset() {
     setName("");
     setColor(randomSwatch());
     setStep(1);
+    setAutoTally(false);
     setOpen(false);
   }
 
@@ -25,7 +32,12 @@ export default function AddTallyTile({ onCreate }: Props) {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    onCreate({ name: trimmed, color, step: Math.max(1, Math.round(step)) });
+    onCreate({
+      name: trimmed,
+      color,
+      step: Math.max(1, Math.round(step)),
+      autoTally,
+    });
     reset();
   }
 
@@ -90,6 +102,16 @@ export default function AddTallyTile({ onCreate }: Props) {
             onChange={(e) => setStep(Number(e.target.value) || 1)}
             className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
           />
+        </label>
+
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <input
+            type="checkbox"
+            checked={autoTally}
+            onChange={(e) => setAutoTally(e.target.checked)}
+            className="h-3.5 w-3.5 accent-accent"
+          />
+          Auto-add +{Math.max(1, Math.round(step))} every day
         </label>
 
         <div className="flex items-center gap-2 pt-1">

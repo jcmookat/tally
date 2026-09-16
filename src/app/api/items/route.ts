@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
   const color = typeof body.color === "string" ? body.color : "#c98a3f";
   const step =
     typeof body.step === "number" && Number.isFinite(body.step) ? body.step : 1;
+  const autoTally = body.autoTally === true;
 
-  const item = await createItem({ name, color, step });
+  const item = await createItem({ name, color, step, autoTally });
   return NextResponse.json(item, { status: 201 });
 }

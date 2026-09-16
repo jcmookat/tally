@@ -8,7 +8,12 @@ import { SWATCHES } from "@/lib/palette";
 type Props = {
   item: Item;
   onBump: (delta: number) => void;
-  onSave: (patch: { name: string; color: string; step: number }) => void;
+  onSave: (patch: {
+    name: string;
+    color: string;
+    step: number;
+    autoTally: boolean;
+  }) => void;
   onDelete: () => void;
 };
 
@@ -18,11 +23,13 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
   const [name, setName] = useState(item.name);
   const [color, setColor] = useState(item.color);
   const [step, setStep] = useState(item.step);
+  const [autoTally, setAutoTally] = useState(item.auto_tally);
 
   function startEdit() {
     setName(item.name);
     setColor(item.color);
     setStep(item.step);
+    setAutoTally(item.auto_tally);
     setConfirmDelete(false);
     setMode("edit");
   }
@@ -30,7 +37,12 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
   function save() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    onSave({ name: trimmed, color, step: Math.max(1, Math.round(step)) });
+    onSave({
+      name: trimmed,
+      color,
+      step: Math.max(1, Math.round(step)),
+      autoTally,
+    });
     setMode("view");
   }
 
@@ -54,6 +66,18 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
             <h3 className="flex-1 truncate text-[0.95rem] font-semibold text-ink">
               {item.name}
             </h3>
+            {item.auto_tally && (
+              <span
+                title={`Auto-adds +${item.step} every day`}
+                className="flex items-center gap-1 rounded-full bg-surface-raised px-2 py-0.5 text-[0.65rem] font-medium text-muted"
+              >
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 3" />
+                </svg>
+                auto
+              </span>
+            )}
             <button
               type="button"
               onClick={startEdit}
@@ -149,6 +173,16 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
               onChange={(e) => setStep(Number(e.target.value) || 1)}
               className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
             />
+          </label>
+
+          <label className="flex items-center gap-2 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={autoTally}
+              onChange={(e) => setAutoTally(e.target.checked)}
+              className="h-3.5 w-3.5 accent-accent"
+            />
+            Auto-add +{Math.max(1, Math.round(step))} every day
           </label>
 
           <div className="flex items-center gap-2 pt-1">

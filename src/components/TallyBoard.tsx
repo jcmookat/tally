@@ -23,6 +23,7 @@ export default function TallyBoard({ initialItems }: Props) {
     name: string;
     color: string;
     step: number;
+    autoTally: boolean;
   }) {
     const tempId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
@@ -32,6 +33,8 @@ export default function TallyBoard({ initialItems }: Props) {
       color: input.color,
       step: input.step,
       count: 0,
+      auto_tally: input.autoTally,
+      last_auto_date: input.autoTally ? now.slice(0, 10) : null,
       created_at: now,
       updated_at: now,
     };
@@ -77,11 +80,21 @@ export default function TallyBoard({ initialItems }: Props) {
 
   async function handleSave(
     id: string,
-    patch: { name: string; color: string; step: number }
+    patch: { name: string; color: string; step: number; autoTally: boolean }
   ) {
     const previous = items;
     setItems((prev) =>
-      prev.map((it) => (it.id === id ? { ...it, ...patch } : it))
+      prev.map((it) =>
+        it.id === id
+          ? {
+              ...it,
+              name: patch.name,
+              color: patch.color,
+              step: patch.step,
+              auto_tally: patch.autoTally,
+            }
+          : it
+      )
     );
 
     try {

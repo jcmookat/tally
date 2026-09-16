@@ -16,6 +16,7 @@ export async function PATCH(
     step?: number;
     delta?: number;
     count?: number;
+    autoTally?: boolean;
   } = {};
 
   if (typeof body.name === "string" && body.name.trim()) {
@@ -32,6 +33,9 @@ export async function PATCH(
   }
   if (typeof body.count === "number" && Number.isFinite(body.count)) {
     patch.count = body.count;
+  }
+  if (typeof body.autoTally === "boolean") {
+    patch.autoTally = body.autoTally;
   }
 
   const item = await updateItem(id, patch);

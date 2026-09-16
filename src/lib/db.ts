@@ -1,4 +1,9 @@
-import { Pool } from "pg";
+import { Pool, types } from "pg";
+
+// Return SQL `date` columns as plain "YYYY-MM-DD" strings instead of
+// pg's default JS Date objects, which get reinterpreted in the local
+// server timezone and can shift the calendar day.
+types.setTypeParser(types.builtins.DATE, (value) => value);
 
 let pool: Pool | null = null;
 
@@ -32,13 +37,44 @@ export type Item = {
   count: number;
   color: string;
   step: number;
+  auto_tally: boolean;
+  last_auto_date: string | null;
   created_at: string;
   updated_at: string;
 };
 
+function todayUTC(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function listItems(): Promise<Item[]> {
+  // Catch up any auto-tally items for days that passed without the app
+  // being opened, then return the current state of every item.
+  //
+  // "Today" is computed here in JS (always UTC) and passed in, rather
+  // than using SQL's current_date, because current_date is evaluated in
+  // whatever timezone the Postgres session happens to be configured
+  // with (UTC on most managed hosts, but often the OS timezone on a
+  // local install) — comparing that against a UTC-computed
+  // last_auto_date could disagree on what day it is by one day.
+  //
+  // This runs as two separate statements rather than one `WITH ... AS
+  // (UPDATE ... RETURNING ...) SELECT ... FROM items`, because Postgres
+  // leaves it unspecified whether a query's main SELECT sees a data-
+  // modifying CTE's own writes when it re-reads the same target table
+  // directly instead of selecting from the CTE's output.
+  const today = todayUTC();
+  await tag`
+    update items
+    set
+      count = count + (${today}::date - coalesce(last_auto_date, (created_at at time zone 'utc')::date)) * step,
+      last_auto_date = ${today}::date,
+      updated_at = now()
+    where auto_tally = true
+      and (last_auto_date is null or last_auto_date < ${today}::date)
+  `;
   const rows = await tag`
-    select id, name, count, color, step, created_at, updated_at
+    select id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
     from items
     order by created_at asc
   `;
@@ -49,19 +85,30 @@ export async function createItem(input: {
   name: string;
   color: string;
   step: number;
+  autoTally?: boolean;
 }): Promise<Item> {
+  const autoTally = input.autoTally ?? false;
+  const lastAutoDate = autoTally ? todayUTC() : null;
   const rows = await tag`
-    insert into items (name, color, step)
-    values (${input.name}, ${input.color}, ${input.step})
-    returning id, name, count, color, step, created_at, updated_at
+    insert into items (name, color, step, auto_tally, last_auto_date)
+    values (${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate})
+    returning id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
   `;
   return (rows as unknown as Item[])[0];
 }
 
 export async function updateItem(
   id: string,
-  patch: { name?: string; color?: string; step?: number; delta?: number; count?: number }
+  patch: {
+    name?: string;
+    color?: string;
+    step?: number;
+    delta?: number;
+    count?: number;
+    autoTally?: boolean;
+  }
 ): Promise<Item | null> {
+  const today = todayUTC();
   const rows = await tag`
     update items
     set
@@ -73,9 +120,14 @@ export async function updateItem(
         when ${patch.delta ?? null}::int is not null then count + ${patch.delta ?? null}
         else count
       end,
+      auto_tally = coalesce(${patch.autoTally ?? null}, auto_tally),
+      last_auto_date = case
+        when ${patch.autoTally ?? null} = true and auto_tally = false then ${today}::date
+        else last_auto_date
+      end,
       updated_at = now()
     where id = ${id}
-    returning id, name, count, color, step, created_at, updated_at
+    returning id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }
