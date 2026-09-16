@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteItem, updateItem } from "@/lib/db";
+import { isOwner } from "@/lib/owners";
 
 export const dynamic = "force-dynamic";
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/items/[id]">
+  ctx: RouteContext<"/api/items/[owner]/[id]">
 ) {
-  const { id } = await ctx.params;
+  const { owner, id } = await ctx.params;
+  if (!isOwner(owner)) {
+    return NextResponse.json({ error: "Unknown board" }, { status: 404 });
+  }
+
   const body = await request.json();
 
   const patch: {
@@ -38,7 +43,7 @@ export async function PATCH(
     patch.autoTally = body.autoTally;
   }
 
-  const item = await updateItem(id, patch);
+  const item = await updateItem(owner, id, patch);
 
   if (!item) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -49,9 +54,13 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  ctx: RouteContext<"/api/items/[id]">
+  ctx: RouteContext<"/api/items/[owner]/[id]">
 ) {
-  const { id } = await ctx.params;
-  await deleteItem(id);
+  const { owner, id } = await ctx.params;
+  if (!isOwner(owner)) {
+    return NextResponse.json({ error: "Unknown board" }, { status: 404 });
+  }
+
+  await deleteItem(owner, id);
   return new NextResponse(null, { status: 204 });
 }

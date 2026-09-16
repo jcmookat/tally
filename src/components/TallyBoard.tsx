@@ -3,14 +3,16 @@
 import { useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import type { Item } from "@/lib/db";
+import type { Owner } from "@/lib/owners";
 import TallyCard from "@/components/TallyCard";
 import AddTallyTile from "@/components/AddTallyTile";
 
 type Props = {
+  owner: Owner;
   initialItems: Item[];
 };
 
-export default function TallyBoard({ initialItems }: Props) {
+export default function TallyBoard({ owner, initialItems }: Props) {
   const [items, setItems] = useState<Item[]>(initialItems);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,13 +37,14 @@ export default function TallyBoard({ initialItems }: Props) {
       count: 0,
       auto_tally: input.autoTally,
       last_auto_date: input.autoTally ? now.slice(0, 10) : null,
+      owner,
       created_at: now,
       updated_at: now,
     };
     setItems((prev) => [...prev, optimistic]);
 
     try {
-      const res = await fetch("/api/items", {
+      const res = await fetch(`/api/items/${owner}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -64,7 +67,7 @@ export default function TallyBoard({ initialItems }: Props) {
     );
 
     try {
-      const res = await fetch(`/api/items/${id}`, {
+      const res = await fetch(`/api/items/${owner}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ delta }),
@@ -98,7 +101,7 @@ export default function TallyBoard({ initialItems }: Props) {
     );
 
     try {
-      const res = await fetch(`/api/items/${id}`, {
+      const res = await fetch(`/api/items/${owner}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -117,7 +120,9 @@ export default function TallyBoard({ initialItems }: Props) {
     setItems((prev) => prev.filter((it) => it.id !== id));
 
     try {
-      const res = await fetch(`/api/items/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/items/${owner}/${id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error("Failed to delete");
     } catch {
       setItems(previous);

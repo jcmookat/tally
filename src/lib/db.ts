@@ -1,4 +1,5 @@
 import { Pool, types } from "pg";
+import type { Owner } from "@/lib/owners";
 
 // Return SQL `date` columns as plain "YYYY-MM-DD" strings instead of
 // pg's default JS Date objects, which get reinterpreted in the local
@@ -39,6 +40,7 @@ export type Item = {
   step: number;
   auto_tally: boolean;
   last_auto_date: string | null;
+  owner: Owner;
   created_at: string;
   updated_at: string;
 };
@@ -47,7 +49,7 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export async function listItems(): Promise<Item[]> {
+export async function listItems(owner: Owner): Promise<Item[]> {
   // Catch up any auto-tally items for days that passed without the app
   // being opened, then return the current state of every item.
   //
@@ -70,34 +72,40 @@ export async function listItems(): Promise<Item[]> {
       count = count + (${today}::date - coalesce(last_auto_date, (created_at at time zone 'utc')::date)) * step,
       last_auto_date = ${today}::date,
       updated_at = now()
-    where auto_tally = true
+    where owner = ${owner}
+      and auto_tally = true
       and (last_auto_date is null or last_auto_date < ${today}::date)
   `;
   const rows = await tag`
-    select id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
+    select id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
     from items
+    where owner = ${owner}
     order by created_at asc
   `;
   return rows as Item[];
 }
 
-export async function createItem(input: {
-  name: string;
-  color: string;
-  step: number;
-  autoTally?: boolean;
-}): Promise<Item> {
+export async function createItem(
+  owner: Owner,
+  input: {
+    name: string;
+    color: string;
+    step: number;
+    autoTally?: boolean;
+  }
+): Promise<Item> {
   const autoTally = input.autoTally ?? false;
   const lastAutoDate = autoTally ? todayUTC() : null;
   const rows = await tag`
-    insert into items (name, color, step, auto_tally, last_auto_date)
-    values (${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate})
-    returning id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
+    insert into items (name, color, step, auto_tally, last_auto_date, owner)
+    values (${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${owner})
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
   `;
   return (rows as unknown as Item[])[0];
 }
 
 export async function updateItem(
+  owner: Owner,
   id: string,
   patch: {
     name?: string;
@@ -126,12 +134,12 @@ export async function updateItem(
         else last_auto_date
       end,
       updated_at = now()
-    where id = ${id}
-    returning id, name, count, color, step, auto_tally, last_auto_date, created_at, updated_at
+    where id = ${id} and owner = ${owner}
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }
 
-export async function deleteItem(id: string): Promise<void> {
-  await tag`delete from items where id = ${id}`;
+export async function deleteItem(owner: Owner, id: string): Promise<void> {
+  await tag`delete from items where id = ${id} and owner = ${owner}`;
 }
