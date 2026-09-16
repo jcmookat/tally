@@ -34,3 +34,17 @@ alter table items alter column position set default 0;
 create index if not exists items_created_at_idx on items (created_at);
 create index if not exists items_owner_idx on items (owner);
 create index if not exists items_owner_position_idx on items (owner, position);
+
+-- Boards replace the old fixed "pogi"/"ganda" pages: any number of
+-- named boards can exist now. items.owner stores a board's slug (the
+-- column keeps its original name to avoid an unnecessary rename of an
+-- already-populated production column, but the app layer presents it
+-- as "board" everywhere it's user-facing).
+create table if not exists boards (
+  slug text primary key,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+insert into boards (slug, name) values ('pogi', 'Pogi'), ('ganda', 'Ganda')
+on conflict (slug) do nothing;

@@ -14,7 +14,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const schemaPath = path.join(__dirname, "..", "db", "schema.sql");
 const schema = readFileSync(schemaPath, "utf8");
 
-const statements = schema
+// Strip `--` line comments before splitting on `;` — this is a plain
+// split, not a real SQL parser, so a semicolon inside a comment (or a
+// string literal) would otherwise break a statement in two.
+const withoutComments = schema
+  .split("\n")
+  .map((line) => line.replace(/--.*$/, ""))
+  .join("\n");
+
+const statements = withoutComments
   .split(";")
   .map((s) => s.trim())
   .filter(Boolean);

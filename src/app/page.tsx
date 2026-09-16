@@ -1,34 +1,28 @@
-import Link from "next/link";
-import { OWNERS, OWNER_LABELS } from "@/lib/owners";
+import { listBoards } from "@/lib/db";
 import ThemeToggle from "@/components/ThemeToggle";
+import BoardList from "@/components/BoardList";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const boards = await listBoards();
+
   return (
     <div className="flex flex-1 justify-center bg-bg">
-      <main className="flex w-full max-w-5xl flex-col items-center gap-10 px-6 py-16 text-center">
-        <div className="flex w-full items-center justify-between">
-          <div className="text-left">
+      <main className="flex w-full max-w-xl flex-col gap-8 px-6 py-16">
+        <div className="flex items-center justify-between">
+          <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
               Tally
             </h1>
             <p className="text-sm text-muted">
-              Whose board do you want to open?
+              Pick a board, or start a new one.
             </p>
           </div>
           <ThemeToggle />
         </div>
 
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          {OWNERS.map((owner) => (
-            <Link
-              key={owner}
-              href={`/${owner}`}
-              className="rounded-2xl border border-border bg-surface px-10 py-8 text-lg font-semibold text-ink shadow-sm transition-colors hover:border-accent hover:text-accent"
-            >
-              {OWNER_LABELS[owner]}
-            </Link>
-          ))}
-        </div>
+        <BoardList initialBoards={boards} />
       </main>
     </div>
   );

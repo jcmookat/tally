@@ -1,5 +1,5 @@
 import { Pool, types } from "pg";
-import type { Owner } from "@/lib/owners";
+import { slugify } from "@/lib/boards";
 
 // Return SQL `date` columns as plain "YYYY-MM-DD" strings instead of
 // pg's default JS Date objects, which get reinterpreted in the local
@@ -32,6 +32,23 @@ function tag(strings: TemplateStringsArray, ...values: unknown[]) {
     .then((res) => res.rows);
 }
 
+const POSTGRES_UNIQUE_VIOLATION = "23505";
+
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code: unknown }).code === POSTGRES_UNIQUE_VIOLATION
+  );
+}
+
+export type Board = {
+  slug: string;
+  name: string;
+  created_at: string;
+};
+
 export type Item = {
   id: string;
   name: string;
@@ -40,7 +57,7 @@ export type Item = {
   step: number;
   auto_tally: boolean;
   last_auto_date: string | null;
-  owner: Owner;
+  board: string;
   position: number;
   created_at: string;
   updated_at: string;
@@ -50,7 +67,46 @@ function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export async function listItems(owner: Owner): Promise<Item[]> {
+export async function listBoards(): Promise<Board[]> {
+  const rows = await tag`
+    select slug, name, created_at
+    from boards
+    order by created_at asc
+  `;
+  return rows as Board[];
+}
+
+export async function getBoard(slug: string): Promise<Board | null> {
+  const rows = await tag`
+    select slug, name, created_at
+    from boards
+    where slug = ${slug}
+  `;
+  return ((rows as unknown as Board[])[0] as Board | undefined) ?? null;
+}
+
+export async function createBoard(name: string): Promise<Board> {
+  const trimmed = name.trim();
+  const baseSlug = slugify(trimmed) || "board";
+
+  let slug = baseSlug;
+  for (let attempt = 2; attempt <= 21; attempt++) {
+    try {
+      const rows = await tag`
+        insert into boards (slug, name)
+        values (${slug}, ${trimmed})
+        returning slug, name, created_at
+      `;
+      return (rows as unknown as Board[])[0];
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      slug = `${baseSlug}-${attempt}`;
+    }
+  }
+  throw new Error("Could not generate a unique board slug");
+}
+
+export async function listItems(board: string): Promise<Item[]> {
   // Catch up any auto-tally items for days that passed without the app
   // being opened, then return the current state of every item.
   //
@@ -73,21 +129,21 @@ export async function listItems(owner: Owner): Promise<Item[]> {
       count = count + (${today}::date - coalesce(last_auto_date, (created_at at time zone 'utc')::date)) * step,
       last_auto_date = ${today}::date,
       updated_at = now()
-    where owner = ${owner}
+    where owner = ${board}
       and auto_tally = true
       and (last_auto_date is null or last_auto_date < ${today}::date)
   `;
   const rows = await tag`
-    select id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
+    select id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
     from items
-    where owner = ${owner}
+    where owner = ${board}
     order by position asc, created_at asc
   `;
   return rows as Item[];
 }
 
 export async function createItem(
-  owner: Owner,
+  board: string,
   input: {
     name: string;
     color: string;
@@ -100,16 +156,16 @@ export async function createItem(
   const rows = await tag`
     insert into items (name, color, step, auto_tally, last_auto_date, owner, position)
     values (
-      ${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${owner},
-      (select coalesce(max(position), -1) + 1 from items where owner = ${owner})
+      ${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${board},
+      (select coalesce(max(position), -1) + 1 from items where owner = ${board})
     )
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
   `;
   return (rows as unknown as Item[])[0];
 }
 
 export async function updateItem(
-  owner: Owner,
+  board: string,
   id: string,
   patch: {
     name?: string;
@@ -138,18 +194,18 @@ export async function updateItem(
         else last_auto_date
       end,
       updated_at = now()
-    where id = ${id} and owner = ${owner}
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
+    where id = ${id} and owner = ${board}
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }
 
-export async function deleteItem(owner: Owner, id: string): Promise<void> {
-  await tag`delete from items where id = ${id} and owner = ${owner}`;
+export async function deleteItem(board: string, id: string): Promise<void> {
+  await tag`delete from items where id = ${id} and owner = ${board}`;
 }
 
 export async function reorderItems(
-  owner: Owner,
+  board: string,
   orderedIds: string[]
 ): Promise<void> {
   const positions = orderedIds.map((_, index) => index);
@@ -159,6 +215,6 @@ export async function reorderItems(
     from (
       select unnest(${orderedIds}::uuid[]) as id, unnest(${positions}::int[]) as position
     ) as data
-    where i.id = data.id and i.owner = ${owner}
+    where i.id = data.id and i.owner = ${board}
   `;
 }

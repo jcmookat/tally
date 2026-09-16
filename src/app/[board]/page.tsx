@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { listItems } from "@/lib/db";
-import { isOwner, OWNER_LABELS } from "@/lib/owners";
+import { getBoard, listItems } from "@/lib/db";
 import TallyBoard from "@/components/TallyBoard";
 import ThemeToggle from "@/components/ThemeToggle";
 
 export const dynamic = "force-dynamic";
 
-export default async function OwnerPage({
+export default async function BoardPage({
   params,
-}: PageProps<"/[owner]">) {
-  const { owner } = await params;
-  if (!isOwner(owner)) notFound();
+}: PageProps<"/[board]">) {
+  const { board: slug } = await params;
+  const board = await getBoard(slug);
+  if (!board) notFound();
 
-  const items = await listItems(owner);
+  const items = await listItems(slug);
 
   return (
     <div className="flex flex-1 justify-center bg-bg">
@@ -24,10 +24,10 @@ export default async function OwnerPage({
               href="/"
               className="text-xs text-muted transition-colors hover:text-ink"
             >
-              ← Switch board
+              ← All boards
             </Link>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-ink">
-              {OWNER_LABELS[owner]}&rsquo;s Tally
+              {board.name}
             </h1>
             <p className="text-sm text-muted">
               Click counters for anything worth counting.
@@ -36,7 +36,7 @@ export default async function OwnerPage({
           <ThemeToggle />
         </header>
 
-        <TallyBoard owner={owner} initialItems={items} />
+        <TallyBoard board={slug} initialItems={items} />
       </main>
     </div>
   );

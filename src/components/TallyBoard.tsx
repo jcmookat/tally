@@ -3,12 +3,11 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import type { Item } from "@/lib/db";
-import type { Owner } from "@/lib/owners";
 import TallyCard from "@/components/TallyCard";
 import AddTallyTile from "@/components/AddTallyTile";
 
 type Props = {
-  owner: Owner;
+  board: string;
   initialItems: Item[];
 };
 
@@ -60,7 +59,7 @@ function SortableCard({
   );
 }
 
-export default function TallyBoard({ owner, initialItems }: Props) {
+export default function TallyBoard({ board, initialItems }: Props) {
   const [items, setItems] = useState<Item[]>(initialItems);
   const [error, setError] = useState<string | null>(null);
   const dragStartOrder = useRef<Item[] | null>(null);
@@ -86,7 +85,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
       count: 0,
       auto_tally: input.autoTally,
       last_auto_date: input.autoTally ? now.slice(0, 10) : null,
-      owner,
+      board,
       position: items.length,
       created_at: now,
       updated_at: now,
@@ -94,7 +93,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     setItems((prev) => [...prev, optimistic]);
 
     try {
-      const res = await fetch(`/api/items/${owner}`, {
+      const res = await fetch(`/api/items/${board}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -117,7 +116,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     );
 
     try {
-      const res = await fetch(`/api/items/${owner}/${id}`, {
+      const res = await fetch(`/api/items/${board}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ delta }),
@@ -151,7 +150,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     );
 
     try {
-      const res = await fetch(`/api/items/${owner}/${id}`, {
+      const res = await fetch(`/api/items/${board}/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -170,7 +169,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     setItems((prev) => prev.filter((it) => it.id !== id));
 
     try {
-      const res = await fetch(`/api/items/${owner}/${id}`, {
+      const res = await fetch(`/api/items/${board}/${id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete");
@@ -194,7 +193,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     if (currentIds.join() === previousIds.join()) return;
 
     try {
-      const res = await fetch(`/api/items/${owner}`, {
+      const res = await fetch(`/api/items/${board}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ order: currentIds }),

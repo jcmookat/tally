@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createItem, listItems, reorderItems } from "@/lib/db";
-import { isOwner } from "@/lib/owners";
+import { createItem, getBoard, listItems, reorderItems } from "@/lib/db";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -9,23 +8,23 @@ export const dynamic = "force-dynamic";
 
 export async function GET(
   _request: NextRequest,
-  ctx: RouteContext<"/api/items/[owner]">
+  ctx: RouteContext<"/api/items/[board]">
 ) {
-  const { owner } = await ctx.params;
-  if (!isOwner(owner)) {
+  const { board } = await ctx.params;
+  if (!(await getBoard(board))) {
     return NextResponse.json({ error: "Unknown board" }, { status: 404 });
   }
 
-  const items = await listItems(owner);
+  const items = await listItems(board);
   return NextResponse.json(items);
 }
 
 export async function POST(
   request: NextRequest,
-  ctx: RouteContext<"/api/items/[owner]">
+  ctx: RouteContext<"/api/items/[board]">
 ) {
-  const { owner } = await ctx.params;
-  if (!isOwner(owner)) {
+  const { board } = await ctx.params;
+  if (!(await getBoard(board))) {
     return NextResponse.json({ error: "Unknown board" }, { status: 404 });
   }
 
@@ -41,16 +40,16 @@ export async function POST(
     typeof body.step === "number" && Number.isFinite(body.step) ? body.step : 1;
   const autoTally = body.autoTally === true;
 
-  const item = await createItem(owner, { name, color, step, autoTally });
+  const item = await createItem(board, { name, color, step, autoTally });
   return NextResponse.json(item, { status: 201 });
 }
 
 export async function PATCH(
   request: NextRequest,
-  ctx: RouteContext<"/api/items/[owner]">
+  ctx: RouteContext<"/api/items/[board]">
 ) {
-  const { owner } = await ctx.params;
-  if (!isOwner(owner)) {
+  const { board } = await ctx.params;
+  if (!(await getBoard(board))) {
     return NextResponse.json({ error: "Unknown board" }, { status: 404 });
   }
 
@@ -68,6 +67,6 @@ export async function PATCH(
     );
   }
 
-  await reorderItems(owner, order);
+  await reorderItems(board, order);
   return new NextResponse(null, { status: 204 });
 }
