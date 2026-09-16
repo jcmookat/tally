@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #e9e4d9;
+  --surface: #f6f3ec;
+  --surface-raised: #ffffff;
+  --ink: #221f1a;
+  --muted: #6f6a5d;
+  --border: #d8d0bf;
+  --accent: #a8641f;
+  --accent-ink: #fdf8ee;
+  --danger: #a23b30;
+  --success: #3f7d52;
+  --window-bg: #201d18;
+  --window-ink: #f2ead6;
+  --shadow-color: 34 30 20;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-window-bg: var(--window-bg);
+  --color-window-ink: var(--window-ink);
+  --font-display: var(--font-plex-mono);
+  --font-sans: var(--font-manrope);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --bg: #18150f;
+    --surface: #221e17;
+    --surface-raised: #2a251c;
+    --ink: #f2ead9;
+    --muted: #a89d88;
+    --border: #3a3327;
+    --accent: #e0983f;
+    --accent-ink: #1c1509;
+    --danger: #e2685a;
+    --success: #6bbf86;
+    --window-bg: #0f0d09;
+    --window-ink: #f5ecd8;
+    --shadow-color: 0 0 0;
   }
 }
 
+:root[data-theme="dark"] {
+  --bg: #18150f;
+  --surface: #221e17;
+  --surface-raised: #2a251c;
+  --ink: #f2ead9;
+  --muted: #a89d88;
+  --border: #3a3327;
+  --accent: #e0983f;
+  --accent-ink: #1c1509;
+  --danger: #e2685a;
+  --success: #6bbf86;
+  --window-bg: #0f0d09;
+  --window-ink: #f5ecd8;
+  --shadow-color: 0 0 0;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

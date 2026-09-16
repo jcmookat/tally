@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tally
 
-## Getting Started
+Click counters for anything worth counting — how many times you wore those
+pants, cups of coffee, whatever. Add as many tallies as you want, click to
+count, edit or delete anytime. Backed by Postgres (Neon) so your counts sync
+across devices.
 
-First, run the development server:
+## Local setup
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Create a Postgres database. On Vercel: **Storage → Create Database →
+   Postgres** (this provisions a Neon database and can inject `DATABASE_URL`
+   into your project's env vars automatically).
+
+3. Copy `.env.example` to `.env.local` and fill in `DATABASE_URL` with your
+   connection string (or run `vercel env pull .env.local` if the project is
+   already linked to Vercel).
+
+4. Create the `items` table:
+
+   ```bash
+   npm run db:migrate
+   ```
+
+5. Run the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000).
+
+## Deploying to Vercel
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+vercel link
+vercel env pull .env.local   # if you provisioned the DB in the dashboard
+npm run db:migrate           # run once against the production database
+vercel deploy --prod
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Make sure `DATABASE_URL` is set in the Vercel project's environment
+variables (Production, Preview, and Development as needed) before deploying.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4
+- Neon Postgres via `@neondatabase/serverless`
+- Framer Motion for the click/enter/exit animations
