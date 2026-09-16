@@ -19,5 +19,18 @@ alter table items add column if not exists last_auto_date date;
 -- rows (created before this column existed) default to 'pogi'.
 alter table items add column if not exists owner text not null default 'pogi';
 
+alter table items add column if not exists position integer;
+
+update items set position = sub.rn
+from (
+  select id, row_number() over (partition by owner order by created_at asc) - 1 as rn
+  from items
+) as sub
+where items.id = sub.id and items.position is null;
+
+alter table items alter column position set not null;
+alter table items alter column position set default 0;
+
 create index if not exists items_created_at_idx on items (created_at);
 create index if not exists items_owner_idx on items (owner);
+create index if not exists items_owner_position_idx on items (owner, position);

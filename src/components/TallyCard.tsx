@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type DragControls } from "framer-motion";
 import type { Item } from "@/lib/db";
 import { SWATCHES } from "@/lib/palette";
 
 type Props = {
   item: Item;
+  dragControls: DragControls;
   onBump: (delta: number) => void;
   onSave: (patch: {
     name: string;
@@ -17,7 +18,13 @@ type Props = {
   onDelete: () => void;
 };
 
-export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
+export default function TallyCard({
+  item,
+  dragControls,
+  onBump,
+  onSave,
+  onDelete,
+}: Props) {
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState(item.name);
@@ -47,17 +54,25 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
   }
 
   return (
-    <motion.li
-      layout
-      initial={{ opacity: 0, scale: 0.9, y: 8 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.22, ease: "easeOut" }}
-      className="list-none rounded-2xl border border-border bg-surface p-4 shadow-[0_1px_0_rgba(var(--shadow-color)/0.06)] flex flex-col gap-4"
-    >
+    <div className="rounded-2xl border border-border bg-surface p-4 shadow-[0_1px_0_rgba(var(--shadow-color)/0.06)] flex flex-col gap-4">
       {mode === "view" ? (
         <>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              aria-label={`Reorder ${item.name}`}
+              onPointerDown={(e) => dragControls.start(e)}
+              className="flex h-7 w-7 shrink-0 touch-none items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-raised hover:text-ink cursor-grab active:cursor-grabbing"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <circle cx="9" cy="6" r="1.4" />
+                <circle cx="15" cy="6" r="1.4" />
+                <circle cx="9" cy="12" r="1.4" />
+                <circle cx="15" cy="12" r="1.4" />
+                <circle cx="9" cy="18" r="1.4" />
+                <circle cx="15" cy="18" r="1.4" />
+              </svg>
+            </button>
             <span
               className="h-2.5 w-2.5 shrink-0 rounded-full"
               style={{ background: item.color }}
@@ -240,6 +255,6 @@ export default function TallyCard({ item, onBump, onSave, onDelete }: Props) {
           </div>
         </div>
       )}
-    </motion.li>
+    </div>
   );
 }

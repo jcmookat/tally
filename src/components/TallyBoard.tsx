@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useRef, useState } from "react";
+import { AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import type { Item } from "@/lib/db";
 import type { Owner } from "@/lib/owners";
 import TallyCard from "@/components/TallyCard";
@@ -12,9 +12,58 @@ type Props = {
   initialItems: Item[];
 };
 
+type SortableCardProps = {
+  item: Item;
+  onBump: (delta: number) => void;
+  onSave: (patch: {
+    name: string;
+    color: string;
+    step: number;
+    autoTally: boolean;
+  }) => void;
+  onDelete: () => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+};
+
+function SortableCard({
+  item,
+  onBump,
+  onSave,
+  onDelete,
+  onDragStart,
+  onDragEnd,
+}: SortableCardProps) {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      initial={{ opacity: 0, scale: 0.9, y: 8 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
+      className="list-none"
+    >
+      <TallyCard
+        item={item}
+        dragControls={dragControls}
+        onBump={onBump}
+        onSave={onSave}
+        onDelete={onDelete}
+      />
+    </Reorder.Item>
+  );
+}
+
 export default function TallyBoard({ owner, initialItems }: Props) {
   const [items, setItems] = useState<Item[]>(initialItems);
   const [error, setError] = useState<string | null>(null);
+  const dragStartOrder = useRef<Item[] | null>(null);
 
   function flash(message: string) {
     setError(message);
@@ -38,6 +87,7 @@ export default function TallyBoard({ owner, initialItems }: Props) {
       auto_tally: input.autoTally,
       last_auto_date: input.autoTally ? now.slice(0, 10) : null,
       owner,
+      position: items.length,
       created_at: now,
       updated_at: now,
     };
@@ -130,10 +180,36 @@ export default function TallyBoard({ owner, initialItems }: Props) {
     }
   }
 
+  function handleDragStart() {
+    dragStartOrder.current = items;
+  }
+
+  async function handleDragEnd() {
+    const previous = dragStartOrder.current;
+    dragStartOrder.current = null;
+    if (!previous) return;
+
+    const currentIds = items.map((it) => it.id);
+    const previousIds = previous.map((it) => it.id);
+    if (currentIds.join() === previousIds.join()) return;
+
+    try {
+      const res = await fetch(`/api/items/${owner}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: currentIds }),
+      });
+      if (!res.ok) throw new Error("Failed to reorder");
+    } catch {
+      setItems(previous);
+      flash("Couldn't save that order. Try again.");
+    }
+  }
+
   const total = items.reduce((sum, it) => sum + it.count, 0);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
       <div className="flex items-baseline justify-between text-sm text-muted">
         <span>
           {items.length} {items.length === 1 ? "tally" : "tallies"}
@@ -141,20 +217,29 @@ export default function TallyBoard({ owner, initialItems }: Props) {
         <span className="tabular">{total.toLocaleString()} total clicks</span>
       </div>
 
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <Reorder.Group
+        as="ul"
+        axis="y"
+        values={items}
+        onReorder={setItems}
+        className="flex flex-col gap-4"
+      >
         <AnimatePresence initial={false}>
           {items.map((item) => (
-            <TallyCard
+            <SortableCard
               key={item.id}
               item={item}
               onBump={(delta) => handleBump(item.id, delta)}
               onSave={(patch) => handleSave(item.id, patch)}
               onDelete={() => handleDelete(item.id)}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
             />
           ))}
         </AnimatePresence>
-        <AddTallyTile onCreate={handleCreate} />
-      </ul>
+      </Reorder.Group>
+
+      <AddTallyTile onCreate={handleCreate} />
 
       {error && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-danger px-4 py-2 text-sm font-medium text-white shadow-lg">

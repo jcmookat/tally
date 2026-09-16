@@ -41,6 +41,7 @@ export type Item = {
   auto_tally: boolean;
   last_auto_date: string | null;
   owner: Owner;
+  position: number;
   created_at: string;
   updated_at: string;
 };
@@ -77,10 +78,10 @@ export async function listItems(owner: Owner): Promise<Item[]> {
       and (last_auto_date is null or last_auto_date < ${today}::date)
   `;
   const rows = await tag`
-    select id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
+    select id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
     from items
     where owner = ${owner}
-    order by created_at asc
+    order by position asc, created_at asc
   `;
   return rows as Item[];
 }
@@ -97,9 +98,12 @@ export async function createItem(
   const autoTally = input.autoTally ?? false;
   const lastAutoDate = autoTally ? todayUTC() : null;
   const rows = await tag`
-    insert into items (name, color, step, auto_tally, last_auto_date, owner)
-    values (${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${owner})
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
+    insert into items (name, color, step, auto_tally, last_auto_date, owner, position)
+    values (
+      ${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${owner},
+      (select coalesce(max(position), -1) + 1 from items where owner = ${owner})
+    )
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
   `;
   return (rows as unknown as Item[])[0];
 }
@@ -135,11 +139,26 @@ export async function updateItem(
       end,
       updated_at = now()
     where id = ${id} and owner = ${owner}
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner, created_at, updated_at
+    returning id, name, count, color, step, auto_tally, last_auto_date, owner, position, created_at, updated_at
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }
 
 export async function deleteItem(owner: Owner, id: string): Promise<void> {
   await tag`delete from items where id = ${id} and owner = ${owner}`;
+}
+
+export async function reorderItems(
+  owner: Owner,
+  orderedIds: string[]
+): Promise<void> {
+  const positions = orderedIds.map((_, index) => index);
+  await tag`
+    update items as i
+    set position = data.position, updated_at = now()
+    from (
+      select unnest(${orderedIds}::uuid[]) as id, unnest(${positions}::int[]) as position
+    ) as data
+    where i.id = data.id and i.owner = ${owner}
+  `;
 }

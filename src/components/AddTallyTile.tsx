@@ -43,29 +43,29 @@ export default function AddTallyTile({ onCreate }: Props) {
 
   if (!open) {
     return (
-      <motion.li layout className="list-none">
+      <motion.div layout>
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="flex h-full min-h-[220px] w-full flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-muted transition-colors hover:border-accent hover:text-accent cursor-pointer"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border py-5 text-muted transition-colors hover:border-accent hover:text-accent cursor-pointer"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full border border-current">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M12 5v14M5 12h14" />
             </svg>
           </span>
           <span className="text-sm font-medium">New tally</span>
         </button>
-      </motion.li>
+      </motion.div>
     );
   }
 
   return (
-    <motion.li
+    <motion.div
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="list-none rounded-2xl border border-border bg-surface p-4"
+      className="rounded-2xl border border-border bg-surface p-4"
     >
       <form onSubmit={submit} className="flex flex-col gap-3">
         <input
@@ -130,6 +130,6 @@ export default function AddTallyTile({ onCreate }: Props) {
           </button>
         </div>
       </form>
-    </motion.li>
+    </motion.div>
   );
 }
