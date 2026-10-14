@@ -9,12 +9,19 @@ sync across devices, and installable as a PWA.
 - **Boards** — the home page lists your boards; create as many as you want,
   each with its own isolated set of tallies at `/<board-slug>`. Boards can be
   renamed, deleted, or dragged to reorder.
-- **Tallies** — click to count by a configurable step, edit name/color/step
-  anytime, delete, or drag to reorder within a board.
-- **Auto-tally** — mark a tally to auto-add its step once per day on its own.
-  Since there's no always-on server, this catches up lazily: opening the app
-  (or hitting the API) backfills however many days were missed.
-- **CSV export** — download a board's tallies from its export button.
+- **Tallies** — two types, picked when you create one:
+  - **Counter** — click to count by a configurable step, edit name/color/step
+    anytime, delete, or drag to reorder within a board.
+  - **Calendar** — a month grid instead of a click counter; click a day to
+    mark it, click again to unmark. The count is just how many days are
+    marked. A tally's type is fixed once created.
+- **Auto-tally** — counters only: mark one to auto-add its step once per day
+  on its own. Since there's no always-on server, this catches up lazily:
+  opening the app (or hitting the API) backfills however many days were
+  missed, and pausing/resuming it doesn't lose progress or backfill the
+  paused gap.
+- **CSV export** — download a board's tallies from its export button
+  (calendar tallies include their marked dates).
 - **PWA** — installable to your home screen/dock, with a service worker for
   offline fallback and cached static assets.
 - Light/dark theme, following system preference or manually toggled.
