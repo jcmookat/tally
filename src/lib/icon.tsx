@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
-const BRASS = "#a8641f";
-const CREAM = "#fdf8ee";
+const ACCENT = "#e0609e";
+const CREAM = "#fff5fa";
 
 export function tallyIconResponse({
   size,
@@ -25,7 +25,7 @@ export function tallyIconResponse({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: BRASS,
+          background: ACCENT,
           borderRadius: cornerRadius,
         }}
       >
