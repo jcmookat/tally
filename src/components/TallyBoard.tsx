@@ -15,6 +15,7 @@ type SortableCardProps = {
   item: Item;
   onBump: (delta: number) => void;
   onToggleMark: (date: string) => void;
+  onSetNote: (date: string, note: string) => void;
   onSave: (patch: {
     name: string;
     color: string;
@@ -30,6 +31,7 @@ function SortableCard({
   item,
   onBump,
   onToggleMark,
+  onSetNote,
   onSave,
   onDelete,
   onDragStart,
@@ -55,6 +57,7 @@ function SortableCard({
         dragControls={dragControls}
         onBump={onBump}
         onToggleMark={onToggleMark}
+        onSetNote={onSetNote}
         onSave={onSave}
         onDelete={onDelete}
       />
@@ -93,6 +96,7 @@ export default function TallyBoard({ board, initialItems }: Props) {
       position: items.length,
       type: input.type,
       marks: [],
+      notes: {},
       created_at: now,
       updated_at: now,
     };
@@ -201,6 +205,37 @@ export default function TallyBoard({ board, initialItems }: Props) {
     }
   }
 
+  async function handleSetNote(id: string, date: string, note: string) {
+    const previous = items;
+    const trimmed = note.trim();
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const notes = { ...it.notes };
+        if (trimmed) {
+          notes[date] = trimmed;
+        } else {
+          delete notes[date];
+        }
+        return { ...it, notes };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/items/${board}/${id}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, note: trimmed || null }),
+      });
+      if (!res.ok) throw new Error("Failed to save note");
+      const updated: Item = await res.json();
+      setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
+    } catch {
+      setItems(previous);
+      flash("Couldn't save that note. Try again.");
+    }
+  }
+
   async function handleDelete(id: string) {
     const previous = items;
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -267,6 +302,7 @@ export default function TallyBoard({ board, initialItems }: Props) {
               item={item}
               onBump={(delta) => handleBump(item.id, delta)}
               onToggleMark={(date) => handleToggleMark(item.id, date)}
+              onSetNote={(date, note) => handleSetNote(item.id, date, note)}
               onSave={(patch) => handleSave(item.id, patch)}
               onDelete={() => handleDelete(item.id)}
               onDragStart={handleDragStart}

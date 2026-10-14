@@ -11,6 +11,7 @@ type Props = {
   dragControls: DragControls;
   onBump: (delta: number) => void;
   onToggleMark: (date: string) => void;
+  onSetNote: (date: string, note: string) => void;
   onSave: (patch: {
     name: string;
     color: string;
@@ -25,6 +26,7 @@ export default function TallyCard({
   dragControls,
   onBump,
   onToggleMark,
+  onSetNote,
   onSave,
   onDelete,
 }: Props) {
@@ -129,8 +131,10 @@ export default function TallyCard({
           {isCalendar ? (
             <MonthCalendar
               marks={item.marks}
+              notes={item.notes}
               color={item.color}
               onToggleDay={onToggleMark}
+              onSetNote={onSetNote}
             />
           ) : (
             <div className="flex items-center gap-2">

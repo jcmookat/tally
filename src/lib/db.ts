@@ -79,6 +79,7 @@ export type Item = {
   position: number;
   type: ItemType;
   marks: string[];
+  notes: Record<string, string>;
   created_at: string;
   updated_at: string;
 };
@@ -86,9 +87,13 @@ export type Item = {
 const ITEM_SELECT = `
   id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, type,
   coalesce(
-    (select json_agg(m.mark_date order by m.mark_date) from item_marks m where m.item_id = items.id),
+    (select json_agg(m.mark_date order by m.mark_date) from item_marks m where m.item_id = items.id and m.marked),
     '[]'
   ) as marks,
+  coalesce(
+    (select json_object_agg(to_char(m.mark_date, 'YYYY-MM-DD'), m.note) from item_marks m where m.item_id = items.id and m.note is not null),
+    '{}'
+  ) as notes,
   created_at, updated_at
 `;
 
@@ -282,36 +287,90 @@ export async function reorderItems(
   `;
 }
 
+async function getCalendarItem(
+  board: string,
+  id: string
+): Promise<{ id: string } | null> {
+  const [item] = (await tag`
+    select id from items where id = ${id} and owner = ${board} and type = 'calendar'
+  `) as { id: string }[];
+  return item ?? null;
+}
+
 export async function toggleMark(
   board: string,
   id: string,
   date: string
 ): Promise<Item | null> {
-  const [item] = (await tag`
-    select id, type from items where id = ${id} and owner = ${board}
-  `) as { id: string; type: ItemType }[];
-  if (!item || item.type !== "calendar") return null;
+  if (!(await getCalendarItem(board, id))) return null;
 
-  const deleted = await tag`
-    delete from item_marks
+  const [existing] = (await tag`
+    select marked, note from item_marks
     where item_id = ${id} and mark_date = ${date}::date
-    returning item_id
-  `;
-  const delta = deleted.length > 0 ? -1 : 1;
+  `) as { marked: boolean; note: string | null }[];
 
-  if (delta > 0) {
+  const wasMarked = existing?.marked ?? false;
+  const nowMarked = !wasMarked;
+
+  if (!existing) {
     await tag`
-      insert into item_marks (item_id, mark_date)
-      values (${id}, ${date}::date)
-      on conflict do nothing
+      insert into item_marks (item_id, mark_date, marked)
+      values (${id}, ${date}::date, true)
+    `;
+  } else if (!nowMarked && !existing.note) {
+    await tag`
+      delete from item_marks where item_id = ${id} and mark_date = ${date}::date
+    `;
+  } else {
+    await tag`
+      update item_marks set marked = ${nowMarked}
+      where item_id = ${id} and mark_date = ${date}::date
     `;
   }
 
+  const delta = nowMarked ? 1 : -1;
   const rows = await tag`
     update items
     set count = greatest(count + ${delta}, 0), updated_at = now()
     where id = ${id}
     returning ${tag.raw(ITEM_SELECT)}
+  `;
+  return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
+}
+
+export async function setNote(
+  board: string,
+  id: string,
+  date: string,
+  note: string | null
+): Promise<Item | null> {
+  if (!(await getCalendarItem(board, id))) return null;
+
+  const trimmed = note?.trim() || null;
+
+  const [existing] = (await tag`
+    select marked from item_marks
+    where item_id = ${id} and mark_date = ${date}::date
+  `) as { marked: boolean }[];
+
+  if (!trimmed && !existing?.marked) {
+    await tag`
+      delete from item_marks where item_id = ${id} and mark_date = ${date}::date
+    `;
+  } else if (!existing) {
+    await tag`
+      insert into item_marks (item_id, mark_date, marked, note)
+      values (${id}, ${date}::date, false, ${trimmed})
+    `;
+  } else {
+    await tag`
+      update item_marks set note = ${trimmed}
+      where item_id = ${id} and mark_date = ${date}::date
+    `;
+  }
+
+  const rows = await tag`
+    select ${tag.raw(ITEM_SELECT)} from items where id = ${id}
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }

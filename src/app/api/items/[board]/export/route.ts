@@ -29,6 +29,7 @@ export async function GET(
     "step",
     "auto_tally",
     "marked_dates",
+    "notes",
     "created_at",
     "updated_at",
   ];
@@ -40,6 +41,11 @@ export async function GET(
       csvField(item.step),
       csvField(item.auto_tally),
       csvField(item.marks.join(";")),
+      csvField(
+        Object.entries(item.notes)
+          .map(([date, note]) => `${date}: ${note}`)
+          .join("; ")
+      ),
       csvField(new Date(item.created_at).toISOString()),
       csvField(new Date(item.updated_at).toISOString()),
     ].join(",")

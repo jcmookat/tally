@@ -75,3 +75,11 @@ create table if not exists item_marks (
   mark_date date not null,
   primary key (item_id, mark_date)
 );
+
+-- A day can carry a note without being marked (e.g. "sick, skipped
+-- today"), so a row's existence no longer means "marked" on its own —
+-- `marked` says whether the day counts toward the total, `note` is
+-- independent of it. Existing rows predate this and were only ever
+-- created because a day was marked, so they default to marked = true.
+alter table item_marks add column if not exists marked boolean not null default true;
+alter table item_marks add column if not exists note text;
