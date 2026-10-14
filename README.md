@@ -14,14 +14,17 @@ sync across devices, and installable as a PWA.
     anytime, delete, or drag to reorder within a board.
   - **Calendar** — a month grid instead of a click counter; click a day to
     mark it, click again to unmark. The count is just how many days are
-    marked. A tally's type is fixed once created.
+    marked. A tally's type is fixed once created. Toggle "note mode" (the
+    pencil icon) to tap a day and add a note instead of toggling its mark —
+    notes work independently of marking, so a day can have one without the
+    other, and unmarking a day never loses its note.
 - **Auto-tally** — counters only: mark one to auto-add its step once per day
   on its own. Since there's no always-on server, this catches up lazily:
   opening the app (or hitting the API) backfills however many days were
   missed, and pausing/resuming it doesn't lose progress or backfill the
   paused gap.
 - **CSV export** — download a board's tallies from its export button
-  (calendar tallies include their marked dates).
+  (calendar tallies include their marked dates and notes).
 - **PWA** — installable to your home screen/dock, with a service worker for
   offline fallback and cached static assets.
 - Light/dark theme, following system preference or manually toggled.
