@@ -17,7 +17,9 @@ sync across devices, and installable as a PWA.
     marked. A tally's type is fixed once created. Toggle "note mode" (the
     pencil icon) to tap a day and add a note instead of toggling its mark —
     notes work independently of marking, so a day can have one without the
-    other, and unmarking a day never loses its note.
+    other, and unmarking a day never loses its note. A 🔥 badge shows the
+    current streak of consecutive marked days (today gets a grace period —
+    the streak only breaks once a day is actually skipped).
 - **Auto-tally** — counters only: mark one to auto-add its step once per day
   on its own. Since there's no always-on server, this catches up lazily:
   opening the app (or hitting the API) backfills however many days were
