@@ -67,6 +67,7 @@ type DayCellProps = {
   color: string;
   variant: "month" | "year";
   size?: number;
+  dimmed?: boolean;
   onClick: () => void;
 };
 
@@ -79,6 +80,7 @@ function DayCell({
   color,
   variant,
   size,
+  dimmed,
   onClick,
 }: DayCellProps) {
   const isMonth = variant === "month";
@@ -102,7 +104,9 @@ function DayCell({
       }}
       className={`relative flex shrink-0 items-center justify-center text-xs font-medium transition-colors cursor-pointer ${
         isMonth ? "aspect-square rounded-lg" : "rounded-[3px]"
-      } ${marked ? "" : isMonth ? "hover:bg-surface-raised" : "hover:bg-surface"}`}
+      } ${marked ? "" : isMonth ? "hover:bg-surface-raised" : "hover:bg-surface"} ${
+        dimmed && !marked ? "opacity-40" : ""
+      }`}
     >
       {isMonth && date.getDate()}
       {hasNote && (
@@ -187,13 +191,28 @@ export default function MonthCalendar({
     setEditingDate(null);
   }
 
-  // Month grid cells, with leading blanks so day 1 lands on its weekday.
+  // Month grid cells. Leading/trailing days from the adjacent months
+  // fill out the first/last week (dimmed, but still clickable — a day
+  // at the start or end of a month shouldn't require navigating to the
+  // next/previous month just to mark it).
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startWeekday = new Date(year, month, 1).getDay();
-  const monthCells: (Date | null)[] = [
-    ...Array.from({ length: startWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)),
-  ];
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const leadingDays = Array.from(
+    { length: startWeekday },
+    (_, i) => new Date(year, month - 1, daysInPrevMonth - startWeekday + i + 1)
+  );
+  const currentMonthDays = Array.from(
+    { length: daysInMonth },
+    (_, i) => new Date(year, month, i + 1)
+  );
+  const trailingCount =
+    (7 - ((leadingDays.length + currentMonthDays.length) % 7)) % 7;
+  const trailingDays = Array.from(
+    { length: trailingCount },
+    (_, i) => new Date(year, month + 1, i + 1)
+  );
+  const monthCells = [...leadingDays, ...currentMonthDays, ...trailingDays];
 
   // Year heatmap: week-columns from the Sunday on/before Jan 1 through
   // the Saturday on/after Dec 31, same shape as a GitHub contribution
@@ -303,8 +322,7 @@ export default function MonthCalendar({
             </div>
           ))}
 
-          {monthCells.map((date, i) => {
-            if (!date) return <div key={`blank-${i}`} />;
+          {monthCells.map((date) => {
             const key = toDateKey(date);
             return (
               <DayCell
@@ -316,6 +334,7 @@ export default function MonthCalendar({
                 notesMode={notesMode}
                 color={color}
                 variant="month"
+                dimmed={date.getMonth() !== month}
                 onClick={() => handleDayClick(key)}
               />
             );
@@ -356,27 +375,21 @@ export default function MonthCalendar({
                   className="flex shrink-0 flex-col"
                   style={{ gap: YEAR_GAP }}
                 >
-                  {col.map((key, row) => {
-                    if (!key.startsWith(`${year}-`)) {
-                      return (
-                        <div key={row} style={{ width: YEAR_CELL, height: YEAR_CELL }} />
-                      );
-                    }
-                    return (
-                      <DayCell
-                        key={key}
-                        date={new Date(`${key}T00:00:00`)}
-                        marked={markSet.has(key)}
-                        hasNote={Boolean(notes[key])}
-                        isToday={key === todayKey}
-                        notesMode={notesMode}
-                        color={color}
-                        variant="year"
-                        size={YEAR_CELL}
-                        onClick={() => handleDayClick(key)}
-                      />
-                    );
-                  })}
+                  {col.map((key) => (
+                    <DayCell
+                      key={key}
+                      date={new Date(`${key}T00:00:00`)}
+                      marked={markSet.has(key)}
+                      hasNote={Boolean(notes[key])}
+                      isToday={key === todayKey}
+                      notesMode={notesMode}
+                      color={color}
+                      variant="year"
+                      size={YEAR_CELL}
+                      dimmed={!key.startsWith(`${year}-`)}
+                      onClick={() => handleDayClick(key)}
+                    />
+                  ))}
                 </div>
               ))}
             </div>
