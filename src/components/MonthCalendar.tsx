@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toDateKey } from "@/lib/calendarDate";
+import { addDays, toDateKey } from "@/lib/calendarDate";
 
 type Props = {
   marks: string[];
@@ -11,7 +11,125 @@ type Props = {
   onSetNote: (date: string, note: string) => void;
 };
 
+type View = "month" | "year";
+
 const WEEKDAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const YEAR_CELL = 11;
+const YEAR_GAP = 3;
+
+function dayLabel(date: Date) {
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function buildYearWeeks(year: number): string[][] {
+  const janFirstDow = new Date(year, 0, 1).getDay();
+  const decLastDow = new Date(year, 11, 31).getDay();
+  const startKey = addDays(`${year}-01-01`, -janFirstDow);
+  const daysInYear =
+    Math.round(
+      (new Date(year, 11, 31).getTime() - new Date(year, 0, 1).getTime()) /
+        86400000
+    ) + 1;
+  const totalWeeks = (janFirstDow + daysInYear + (6 - decLastDow)) / 7;
+
+  return Array.from({ length: totalWeeks }, (_, col) =>
+    Array.from({ length: 7 }, (_, row) => addDays(startKey, col * 7 + row))
+  );
+}
+
+function buildMonthLabels(
+  weeks: string[][],
+  year: number
+): { col: number; label: string }[] {
+  const labels: { col: number; label: string }[] = [];
+  let lastMonth = -1;
+  weeks.forEach((col, i) => {
+    const keyInYear = col.find((key) => key.startsWith(`${year}-`));
+    if (!keyInYear) return;
+    const date = new Date(`${keyInYear}T00:00:00`);
+    if (date.getMonth() !== lastMonth) {
+      lastMonth = date.getMonth();
+      labels.push({
+        col: i,
+        label: date.toLocaleDateString(undefined, { month: "short" }),
+      });
+    }
+  });
+  return labels;
+}
+
+type DayCellProps = {
+  date: Date;
+  marked: boolean;
+  hasNote: boolean;
+  isToday: boolean;
+  notesMode: boolean;
+  color: string;
+  variant: "month" | "year";
+  size?: number;
+  onClick: () => void;
+};
+
+function DayCell({
+  date,
+  marked,
+  hasNote,
+  isToday,
+  notesMode,
+  color,
+  variant,
+  size,
+  onClick,
+}: DayCellProps) {
+  const isMonth = variant === "month";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={notesMode ? undefined : marked}
+      aria-label={
+        notesMode
+          ? `Edit note for ${dayLabel(date)}`
+          : `${marked ? "Unmark" : "Mark"} ${dayLabel(date)}`
+      }
+      title={dayLabel(date)}
+      style={{
+        ...(isMonth ? {} : { width: size, height: size }),
+        background: marked ? color : isMonth ? "transparent" : "var(--surface-raised)",
+        color: marked ? "#fff" : "var(--ink)",
+        outline: isToday && !marked ? "1.5px solid var(--border)" : "none",
+        outlineOffset: "-1.5px",
+      }}
+      className={`relative flex shrink-0 items-center justify-center text-xs font-medium transition-colors cursor-pointer ${
+        isMonth ? "aspect-square rounded-lg" : "rounded-[3px]"
+      } ${marked ? "" : isMonth ? "hover:bg-surface-raised" : "hover:bg-surface"}`}
+    >
+      {isMonth && date.getDate()}
+      {hasNote && (
+        <span
+          aria-hidden
+          className="absolute rounded-full"
+          style={
+            isMonth
+              ? {
+                  bottom: 4,
+                  height: 4,
+                  width: 4,
+                  background: marked ? "#fff" : "var(--accent)",
+                }
+              : {
+                  top: 1,
+                  right: 1,
+                  height: 3,
+                  width: 3,
+                  background: marked ? "#fff" : "var(--accent)",
+                }
+          }
+        />
+      )}
+    </button>
+  );
+}
 
 export default function MonthCalendar({
   marks,
@@ -20,6 +138,7 @@ export default function MonthCalendar({
   onToggleDay,
   onSetNote,
 }: Props) {
+  const [view, setView] = useState<View>("month");
   const [viewDate, setViewDate] = useState(() => new Date());
   const [notesMode, setNotesMode] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
@@ -29,17 +148,11 @@ export default function MonthCalendar({
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const startWeekday = new Date(year, month, 1).getDay();
 
-  const cells: (Date | null)[] = [
-    ...Array.from({ length: startWeekday }, () => null),
-    ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)),
-  ];
-
-  const isCurrentMonth =
-    viewDate.getFullYear() === new Date().getFullYear() &&
-    viewDate.getMonth() === new Date().getMonth();
+  const isCurrentPeriod =
+    view === "month"
+      ? year === new Date().getFullYear() && month === new Date().getMonth()
+      : year === new Date().getFullYear();
 
   function handleDayClick(key: string) {
     if (notesMode) {
@@ -48,6 +161,18 @@ export default function MonthCalendar({
     } else {
       onToggleDay(key);
     }
+  }
+
+  function goBack() {
+    setViewDate(
+      view === "month" ? new Date(year, month - 1, 1) : new Date(year - 1, month, 1)
+    );
+  }
+
+  function goForward() {
+    setViewDate(
+      view === "month" ? new Date(year, month + 1, 1) : new Date(year + 1, month, 1)
+    );
   }
 
   function saveNote() {
@@ -62,28 +187,63 @@ export default function MonthCalendar({
     setEditingDate(null);
   }
 
+  // Month grid cells, with leading blanks so day 1 lands on its weekday.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startWeekday = new Date(year, month, 1).getDay();
+  const monthCells: (Date | null)[] = [
+    ...Array.from({ length: startWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => new Date(year, month, i + 1)),
+  ];
+
+  // Year heatmap: week-columns from the Sunday on/before Jan 1 through
+  // the Saturday on/after Dec 31, same shape as a GitHub contribution
+  // graph. Days outside the target year (padding at either end) render
+  // blank. Cheap enough (at most ~54 weeks) to just compute directly
+  // each render rather than memoize.
+  const weeks = buildYearWeeks(year);
+  const monthLabels = buildMonthLabels(weeks, year);
+
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setViewDate(new Date(year, month - 1, 1))}
-          aria-label="Previous month"
-          className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:text-ink hover:bg-surface-raised cursor-pointer"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 6l-6 6 6 6" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setView((v) => (v === "month" ? "year" : "month"))}
+            aria-pressed={view === "year"}
+            title={view === "month" ? "Switch to year view" : "Switch to month view"}
+            className="flex h-7 w-7 items-center justify-center rounded-full transition-colors cursor-pointer"
+            style={{
+              color: view === "year" ? "var(--accent)" : "var(--muted)",
+              background: view === "year" ? "var(--surface-raised)" : "transparent",
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label={view === "month" ? "Previous month" : "Previous year"}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:text-ink hover:bg-surface-raised cursor-pointer"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </button>
+        </div>
 
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-ink">
-            {viewDate.toLocaleDateString(undefined, {
-              month: "long",
-              year: "numeric",
-            })}
+            {view === "month"
+              ? viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+              : year}
           </span>
-          {!isCurrentMonth && (
+          {!isCurrentPeriod && (
             <button
               type="button"
               onClick={() => setViewDate(new Date())}
@@ -115,8 +275,8 @@ export default function MonthCalendar({
           </button>
           <button
             type="button"
-            onClick={() => setViewDate(new Date(year, month + 1, 1))}
-            aria-label="Next month"
+            onClick={goForward}
+            aria-label={view === "month" ? "Next month" : "Next year"}
             className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:text-ink hover:bg-surface-raised cursor-pointer"
           >
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -132,57 +292,97 @@ export default function MonthCalendar({
         </p>
       )}
 
-      <div className="grid grid-cols-7 gap-1">
-        {WEEKDAY_LABELS.map((label) => (
-          <div
-            key={label}
-            className="flex h-6 items-center justify-center text-[0.65rem] font-medium text-muted"
-          >
-            {label}
-          </div>
-        ))}
-
-        {cells.map((date, i) => {
-          if (!date) return <div key={`blank-${i}`} />;
-
-          const key = toDateKey(date);
-          const marked = markSet.has(key);
-          const hasNote = Boolean(notes[key]);
-          const isToday = key === todayKey;
-
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => handleDayClick(key)}
-              aria-pressed={notesMode ? undefined : marked}
-              aria-label={
-                notesMode
-                  ? `Edit note for ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-                  : `${marked ? "Unmark" : "Mark"} ${date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
-              }
-              className={`relative flex aspect-square items-center justify-center rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                marked ? "" : "hover:bg-surface-raised"
-              }`}
-              style={{
-                background: marked ? color : "transparent",
-                color: marked ? "#fff" : "var(--ink)",
-                outline: isToday && !marked ? "1.5px solid var(--border)" : "none",
-                outlineOffset: "-1.5px",
-              }}
+      {view === "month" ? (
+        <div className="grid grid-cols-7 gap-1">
+          {WEEKDAY_LABELS.map((label) => (
+            <div
+              key={label}
+              className="flex h-6 items-center justify-center text-[0.65rem] font-medium text-muted"
             >
-              {date.getDate()}
-              {hasNote && (
-                <span
-                  aria-hidden
-                  className="absolute bottom-1 h-1 w-1 rounded-full"
-                  style={{ background: marked ? "#fff" : "var(--accent)" }}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+              {label}
+            </div>
+          ))}
+
+          {monthCells.map((date, i) => {
+            if (!date) return <div key={`blank-${i}`} />;
+            const key = toDateKey(date);
+            return (
+              <DayCell
+                key={key}
+                date={date}
+                marked={markSet.has(key)}
+                hasNote={Boolean(notes[key])}
+                isToday={key === todayKey}
+                notesMode={notesMode}
+                color={color}
+                variant="month"
+                onClick={() => handleDayClick(key)}
+              />
+            );
+          })}
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div className="inline-flex flex-col gap-1">
+            <div className="flex" style={{ gap: YEAR_GAP, paddingLeft: 16 }}>
+              {weeks.map((_, i) => {
+                const label = monthLabels.find((m) => m.col === i);
+                return (
+                  <div
+                    key={i}
+                    style={{ width: YEAR_CELL }}
+                    className="shrink-0 text-[0.55rem] text-muted"
+                  >
+                    {label?.label}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex" style={{ gap: YEAR_GAP }}>
+              <div className="flex shrink-0 flex-col" style={{ gap: YEAR_GAP, width: 13 }}>
+                {WEEKDAY_LABELS.map((label, i) => (
+                  <div
+                    key={label}
+                    style={{ height: YEAR_CELL }}
+                    className="flex items-center text-[0.55rem] text-muted"
+                  >
+                    {i % 2 === 1 ? label[0] : ""}
+                  </div>
+                ))}
+              </div>
+              {weeks.map((col, colIndex) => (
+                <div
+                  key={colIndex}
+                  className="flex shrink-0 flex-col"
+                  style={{ gap: YEAR_GAP }}
+                >
+                  {col.map((key, row) => {
+                    if (!key.startsWith(`${year}-`)) {
+                      return (
+                        <div key={row} style={{ width: YEAR_CELL, height: YEAR_CELL }} />
+                      );
+                    }
+                    return (
+                      <DayCell
+                        key={key}
+                        date={new Date(`${key}T00:00:00`)}
+                        marked={markSet.has(key)}
+                        hasNote={Boolean(notes[key])}
+                        isToday={key === todayKey}
+                        notesMode={notesMode}
+                        color={color}
+                        variant="year"
+                        size={YEAR_CELL}
+                        onClick={() => handleDayClick(key)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingDate && (
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised p-3">
