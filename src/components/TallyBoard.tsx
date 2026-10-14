@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, Reorder, useDragControls } from "framer-motion";
-import type { Item } from "@/lib/db";
+import type { Item, ItemType } from "@/lib/db";
 import TallyCard from "@/components/TallyCard";
 import AddTallyTile from "@/components/AddTallyTile";
 
@@ -14,6 +14,7 @@ type Props = {
 type SortableCardProps = {
   item: Item;
   onBump: (delta: number) => void;
+  onToggleMark: (date: string) => void;
   onSave: (patch: {
     name: string;
     color: string;
@@ -28,6 +29,7 @@ type SortableCardProps = {
 function SortableCard({
   item,
   onBump,
+  onToggleMark,
   onSave,
   onDelete,
   onDragStart,
@@ -52,6 +54,7 @@ function SortableCard({
         item={item}
         dragControls={dragControls}
         onBump={onBump}
+        onToggleMark={onToggleMark}
         onSave={onSave}
         onDelete={onDelete}
       />
@@ -74,6 +77,7 @@ export default function TallyBoard({ board, initialItems }: Props) {
     color: string;
     step: number;
     autoTally: boolean;
+    type: ItemType;
   }) {
     const tempId = `temp-${Date.now()}`;
     const now = new Date().toISOString();
@@ -87,6 +91,8 @@ export default function TallyBoard({ board, initialItems }: Props) {
       last_auto_date: input.autoTally ? now.slice(0, 10) : null,
       board,
       position: items.length,
+      type: input.type,
+      marks: [],
       created_at: now,
       updated_at: now,
     };
@@ -164,6 +170,37 @@ export default function TallyBoard({ board, initialItems }: Props) {
     }
   }
 
+  async function handleToggleMark(id: string, date: string) {
+    const previous = items;
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const marked = it.marks.includes(date);
+        return {
+          ...it,
+          marks: marked
+            ? it.marks.filter((d) => d !== date)
+            : [...it.marks, date].sort(),
+          count: Math.max(it.count + (marked ? -1 : 1), 0),
+        };
+      })
+    );
+
+    try {
+      const res = await fetch(`/api/items/${board}/${id}/marks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle mark");
+      const updated: Item = await res.json();
+      setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
+    } catch {
+      setItems(previous);
+      flash("Couldn't save that day. Try again.");
+    }
+  }
+
   async function handleDelete(id: string) {
     const previous = items;
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -229,6 +266,7 @@ export default function TallyBoard({ board, initialItems }: Props) {
               key={item.id}
               item={item}
               onBump={(delta) => handleBump(item.id, delta)}
+              onToggleMark={(date) => handleToggleMark(item.id, date)}
               onSave={(patch) => handleSave(item.id, patch)}
               onDelete={() => handleDelete(item.id)}
               onDragStart={handleDragStart}

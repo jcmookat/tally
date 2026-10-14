@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { SWATCHES, randomSwatch } from "@/lib/palette";
+import type { ItemType } from "@/lib/db";
 
 type Props = {
   onCreate: (input: {
@@ -10,6 +11,7 @@ type Props = {
     color: string;
     step: number;
     autoTally: boolean;
+    type: ItemType;
   }) => void;
 };
 
@@ -19,12 +21,14 @@ export default function AddTallyTile({ onCreate }: Props) {
   const [color, setColor] = useState(randomSwatch());
   const [step, setStep] = useState(1);
   const [autoTally, setAutoTally] = useState(false);
+  const [type, setType] = useState<ItemType>("counter");
 
   function reset() {
     setName("");
     setColor(randomSwatch());
     setStep(1);
     setAutoTally(false);
+    setType("counter");
     setOpen(false);
   }
 
@@ -36,7 +40,8 @@ export default function AddTallyTile({ onCreate }: Props) {
       name: trimmed,
       color,
       step: Math.max(1, Math.round(step)),
-      autoTally,
+      autoTally: type === "counter" && autoTally,
+      type,
     });
     reset();
   }
@@ -68,6 +73,23 @@ export default function AddTallyTile({ onCreate }: Props) {
       className="rounded-2xl border border-border bg-surface p-4"
     >
       <form onSubmit={submit} className="flex flex-col gap-3">
+        <div className="flex gap-1 rounded-full bg-surface-raised p-1 text-xs font-medium">
+          {(["counter", "calendar"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setType(t)}
+              className="flex-1 rounded-full py-1.5 capitalize transition-colors cursor-pointer"
+              style={{
+                background: type === t ? "var(--accent)" : "transparent",
+                color: type === t ? "var(--accent-ink)" : "var(--muted)",
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -93,26 +115,36 @@ export default function AddTallyTile({ onCreate }: Props) {
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
-          Step size
-          <input
-            type="number"
-            min={1}
-            value={step}
-            onChange={(e) => setStep(Number(e.target.value) || 1)}
-            className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
-          />
-        </label>
+        {type === "counter" && (
+          <>
+            <label className="flex items-center gap-2 text-xs text-muted">
+              Step size
+              <input
+                type="number"
+                min={1}
+                value={step}
+                onChange={(e) => setStep(Number(e.target.value) || 1)}
+                className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
+              />
+            </label>
 
-        <label className="flex items-center gap-2 text-xs text-muted">
-          <input
-            type="checkbox"
-            checked={autoTally}
-            onChange={(e) => setAutoTally(e.target.checked)}
-            className="h-3.5 w-3.5 accent-accent"
-          />
-          Auto-add +{Math.max(1, Math.round(step))} every day
-        </label>
+            <label className="flex items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={autoTally}
+                onChange={(e) => setAutoTally(e.target.checked)}
+                className="h-3.5 w-3.5 accent-accent"
+              />
+              Auto-add +{Math.max(1, Math.round(step))} every day
+            </label>
+          </>
+        )}
+
+        {type === "calendar" && (
+          <p className="text-xs text-muted">
+            Click any day on the calendar to mark it.
+          </p>
+        )}
 
         <div className="flex items-center gap-2 pt-1">
           <button

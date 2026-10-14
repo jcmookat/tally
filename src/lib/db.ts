@@ -20,17 +20,32 @@ function db() {
   return pool;
 }
 
+// Wraps a plain string so `tag` splices it into the query text verbatim
+// instead of binding it as a parameter — for SQL fragments that can't
+// be parameterized (like a column list), never for untrusted input.
+// Only ever call `tag.raw` with a literal string written in this file.
+class RawSQL {
+  constructor(public readonly text: string) {}
+}
+
 function tag(strings: TemplateStringsArray, ...values: unknown[]) {
   let text = strings[0];
   const params: unknown[] = [];
   values.forEach((v, i) => {
-    params.push(v);
-    text += `$${i + 1}` + strings[i + 1];
+    if (v instanceof RawSQL) {
+      text += v.text;
+    } else {
+      params.push(v);
+      text += `$${params.length}`;
+    }
+    text += strings[i + 1];
   });
   return db()
     .query(text, params)
     .then((res) => res.rows);
 }
+
+tag.raw = (text: string) => new RawSQL(text);
 
 const POSTGRES_UNIQUE_VIOLATION = "23505";
 
@@ -50,6 +65,8 @@ export type Board = {
   created_at: string;
 };
 
+export type ItemType = "counter" | "calendar";
+
 export type Item = {
   id: string;
   name: string;
@@ -60,9 +77,20 @@ export type Item = {
   last_auto_date: string | null;
   board: string;
   position: number;
+  type: ItemType;
+  marks: string[];
   created_at: string;
   updated_at: string;
 };
+
+const ITEM_SELECT = `
+  id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, type,
+  coalesce(
+    (select json_agg(m.mark_date order by m.mark_date) from item_marks m where m.item_id = items.id),
+    '[]'
+  ) as marks,
+  created_at, updated_at
+`;
 
 function todayUTC(): string {
   return new Date().toISOString().slice(0, 10);
@@ -166,7 +194,7 @@ export async function listItems(board: string): Promise<Item[]> {
       and (last_auto_date is null or last_auto_date < ${today}::date)
   `;
   const rows = await tag`
-    select id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
+    select ${tag.raw(ITEM_SELECT)}
     from items
     where owner = ${board}
     order by position asc, created_at asc
@@ -181,17 +209,20 @@ export async function createItem(
     color: string;
     step: number;
     autoTally?: boolean;
+    type?: ItemType;
   }
 ): Promise<Item> {
   const autoTally = input.autoTally ?? false;
   const lastAutoDate = autoTally ? todayUTC() : null;
+  const type = input.type ?? "counter";
   const rows = await tag`
-    insert into items (name, color, step, auto_tally, last_auto_date, owner, position)
+    insert into items (name, color, step, auto_tally, last_auto_date, owner, position, type)
     values (
       ${input.name}, ${input.color}, ${input.step}, ${autoTally}, ${lastAutoDate}, ${board},
-      (select coalesce(max(position), -1) + 1 from items where owner = ${board})
+      (select coalesce(max(position), -1) + 1 from items where owner = ${board}),
+      ${type}
     )
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
+    returning ${tag.raw(ITEM_SELECT)}
   `;
   return (rows as unknown as Item[])[0];
 }
@@ -227,7 +258,7 @@ export async function updateItem(
       end,
       updated_at = now()
     where id = ${id} and owner = ${board}
-    returning id, name, count, color, step, auto_tally, last_auto_date, owner as board, position, created_at, updated_at
+    returning ${tag.raw(ITEM_SELECT)}
   `;
   return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }
@@ -249,4 +280,38 @@ export async function reorderItems(
     ) as data
     where i.id = data.id and i.owner = ${board}
   `;
+}
+
+export async function toggleMark(
+  board: string,
+  id: string,
+  date: string
+): Promise<Item | null> {
+  const [item] = (await tag`
+    select id, type from items where id = ${id} and owner = ${board}
+  `) as { id: string; type: ItemType }[];
+  if (!item || item.type !== "calendar") return null;
+
+  const deleted = await tag`
+    delete from item_marks
+    where item_id = ${id} and mark_date = ${date}::date
+    returning item_id
+  `;
+  const delta = deleted.length > 0 ? -1 : 1;
+
+  if (delta > 0) {
+    await tag`
+      insert into item_marks (item_id, mark_date)
+      values (${id}, ${date}::date)
+      on conflict do nothing
+    `;
+  }
+
+  const rows = await tag`
+    update items
+    set count = greatest(count + ${delta}, 0), updated_at = now()
+    where id = ${id}
+    returning ${tag.raw(ITEM_SELECT)}
+  `;
+  return ((rows as unknown as Item[])[0] as Item | undefined) ?? null;
 }

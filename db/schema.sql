@@ -62,3 +62,16 @@ alter table boards alter column position set not null;
 alter table boards alter column position set default 0;
 
 create index if not exists boards_position_idx on boards (position);
+
+-- "counter" items use count/step/auto_tally as before. "calendar"
+-- items instead track which specific days were marked, in item_marks;
+-- their count is kept in sync as a denormalized total (number of
+-- marks) so every other part of the app that reads count (board
+-- totals, CSV export) keeps working unchanged.
+alter table items add column if not exists type text not null default 'counter';
+
+create table if not exists item_marks (
+  item_id uuid not null references items (id) on delete cascade,
+  mark_date date not null,
+  primary key (item_id, mark_date)
+);

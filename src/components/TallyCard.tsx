@@ -4,11 +4,13 @@ import { useState } from "react";
 import { AnimatePresence, motion, type DragControls } from "framer-motion";
 import type { Item } from "@/lib/db";
 import { SWATCHES } from "@/lib/palette";
+import MonthCalendar from "@/components/MonthCalendar";
 
 type Props = {
   item: Item;
   dragControls: DragControls;
   onBump: (delta: number) => void;
+  onToggleMark: (date: string) => void;
   onSave: (patch: {
     name: string;
     color: string;
@@ -22,6 +24,7 @@ export default function TallyCard({
   item,
   dragControls,
   onBump,
+  onToggleMark,
   onSave,
   onDelete,
 }: Props) {
@@ -31,6 +34,7 @@ export default function TallyCard({
   const [color, setColor] = useState(item.color);
   const [step, setStep] = useState(item.step);
   const [autoTally, setAutoTally] = useState(item.auto_tally);
+  const isCalendar = item.type === "calendar";
 
   function startEdit() {
     setName(item.name);
@@ -122,35 +126,43 @@ export default function TallyCard({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => onBump(-item.step)}
-              aria-label={`Subtract ${item.step}`}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface-raised cursor-pointer"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M5 12h14" />
-              </svg>
-            </button>
+          {isCalendar ? (
+            <MonthCalendar
+              marks={item.marks}
+              color={item.color}
+              onToggleDay={onToggleMark}
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onBump(-item.step)}
+                aria-label={`Subtract ${item.step}`}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface-raised cursor-pointer"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
 
-            <motion.button
-              type="button"
-              onClick={() => onBump(item.step)}
-              whileTap={{ scale: 0.95 }}
-              style={{ background: item.color }}
-              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold text-white shadow-sm cursor-pointer"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              Click
-            </motion.button>
+              <motion.button
+                type="button"
+                onClick={() => onBump(item.step)}
+                whileTap={{ scale: 0.95 }}
+                style={{ background: item.color }}
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-sm font-semibold text-white shadow-sm cursor-pointer"
+              >
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Click
+              </motion.button>
 
-            <span className="w-9 shrink-0 text-center text-xs text-muted">
-              +{item.step}
-            </span>
-          </div>
+              <span className="w-9 shrink-0 text-center text-xs text-muted">
+                +{item.step}
+              </span>
+            </div>
+          )}
         </>
       ) : (
         <div className="flex flex-col gap-3">
@@ -179,26 +191,30 @@ export default function TallyCard({
             ))}
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-muted">
-            Step size
-            <input
-              type="number"
-              min={1}
-              value={step}
-              onChange={(e) => setStep(Number(e.target.value) || 1)}
-              className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
-            />
-          </label>
+          {!isCalendar && (
+            <>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                Step size
+                <input
+                  type="number"
+                  min={1}
+                  value={step}
+                  onChange={(e) => setStep(Number(e.target.value) || 1)}
+                  className="w-16 rounded-lg border border-border bg-surface-raised px-2 py-1 text-sm text-ink outline-none focus:border-accent"
+                />
+              </label>
 
-          <label className="flex items-center gap-2 text-xs text-muted">
-            <input
-              type="checkbox"
-              checked={autoTally}
-              onChange={(e) => setAutoTally(e.target.checked)}
-              className="h-3.5 w-3.5 accent-accent"
-            />
-            Auto-add +{Math.max(1, Math.round(step))} every day
-          </label>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={autoTally}
+                  onChange={(e) => setAutoTally(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-accent"
+                />
+                Auto-add +{Math.max(1, Math.round(step))} every day
+              </label>
+            </>
+          )}
 
           <div className="flex items-center gap-2 pt-1">
             <button
@@ -218,13 +234,17 @@ export default function TallyCard({
           </div>
 
           <div className="flex items-center justify-between border-t border-border pt-3">
-            <button
-              type="button"
-              onClick={() => onBump(-item.count)}
-              className="text-xs text-muted hover:text-ink cursor-pointer"
-            >
-              Reset to 0
-            </button>
+            {isCalendar ? (
+              <span />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onBump(-item.count)}
+                className="text-xs text-muted hover:text-ink cursor-pointer"
+              >
+                Reset to 0
+              </button>
+            )}
             {confirmDelete ? (
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-muted">Delete for good?</span>

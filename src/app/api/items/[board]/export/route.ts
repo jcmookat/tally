@@ -24,18 +24,22 @@ export async function GET(
 
   const header = [
     "name",
+    "type",
     "count",
     "step",
     "auto_tally",
+    "marked_dates",
     "created_at",
     "updated_at",
   ];
   const rows = items.map((item) =>
     [
       csvField(item.name),
+      csvField(item.type),
       csvField(item.count),
       csvField(item.step),
       csvField(item.auto_tally),
+      csvField(item.marks.join(";")),
       csvField(new Date(item.created_at).toISOString()),
       csvField(new Date(item.updated_at).toISOString()),
     ].join(",")

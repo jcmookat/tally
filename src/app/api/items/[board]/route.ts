@@ -39,8 +39,9 @@ export async function POST(
   const step =
     typeof body.step === "number" && Number.isFinite(body.step) ? body.step : 1;
   const autoTally = body.autoTally === true;
+  const type = body.type === "calendar" ? "calendar" : "counter";
 
-  const item = await createItem(board, { name, color, step, autoTally });
+  const item = await createItem(board, { name, color, step, autoTally, type });
   return NextResponse.json(item, { status: 201 });
 }
 
