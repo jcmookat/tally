@@ -14,12 +14,20 @@ sync across devices, and installable as a PWA.
     anytime, delete, or drag to reorder within a board.
   - **Calendar** — a month grid instead of a click counter; click a day to
     mark it, click again to unmark. The count is just how many days are
-    marked. A tally's type is fixed once created. Toggle "note mode" (the
-    pencil icon) to tap a day and add a note instead of toggling its mark —
-    notes work independently of marking, so a day can have one without the
-    other, and unmarking a day never loses its note. A 🔥 badge shows the
-    current streak of consecutive marked days (today gets a grace period —
-    the streak only breaks once a day is actually skipped).
+    marked, and a tally's type is fixed once created.
+    - Navigate to any month or year with no limit on how far back; days from
+      the adjacent month shown at the edges of the grid are clickable too,
+      not just the current month's.
+    - The grid-icon toggle switches to a full year heatmap (GitHub
+      contribution-graph style, scrolls horizontally) as an alternative to
+      the month view — marking and note-editing work the same in both.
+    - "Note mode" (the pencil icon) makes tapping a day open a note editor
+      instead of toggling its mark. Notes work independently of marking, so
+      a day can have one without the other, and unmarking a day never loses
+      its note.
+    - A 🔥 badge shows the current streak of consecutive marked days (today
+      gets a grace period — the streak only breaks once a day is actually
+      skipped).
 - **Auto-tally** — counters only: mark one to auto-add its step once per day
   on its own. Since there's no always-on server, this catches up lazily:
   opening the app (or hitting the API) backfills however many days were
